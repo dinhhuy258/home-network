@@ -1,0 +1,10 @@
+version: "3.8"
+services:
+  it-tools:
+    image: corentinth/it-tools
+    restart: unless-stopped
+    ports:
+      - 5002:80
+    environment:
+      - VITE_VERCEL_ENV=production
+networks: {}

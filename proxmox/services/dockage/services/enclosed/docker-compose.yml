@@ -1,0 +1,12 @@
+version: "3.8"
+services:
+  enclosed:
+    restart: unless-stopped
+    image: corentinth/enclosed
+    ports:
+      - 5003:8787
+    volumes:
+      - /opt/stacks/enclosed/data:/app/.data
+    environment:
+      - PUBLIC_DEFAULT_DELETE_NOTE_AFTER_READING=true
+networks: {}

@@ -1,0 +1,10 @@
+version: "3.8"
+services:
+  linkding:
+    restart: unless-stopped
+    image: sissbruecker/linkding
+    ports:
+      - 5004:9090
+    volumes:
+      - /opt/stacks/linkding/data:/etc/linkding/data
+networks: {}
