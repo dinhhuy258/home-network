@@ -28,7 +28,6 @@ One new guest per service, built by mirroring the user's reference step by step.
 - Create the guest with the resources the user picked in step 4. A build boost is temporary and is reverted in step 10 even after a failed run.
 - Ask once, up front (steps 4 to 6), then run through the install without further questions unless something stops it.
 - When a step has several things to ask, put them all in one AskUserQuestion call, with related choices bundled into one option each. Never ask one value, act, then ask the next.
-- A `tmux-relay send` that ends in `Timeout: idle pattern not matched` (other than at the `set-secret.sh` prompt) means the command is still running in the pane. Send nothing more to that pane; ask the user what the pane shows. Every `incus stop`/`incus restart` carries `--timeout 30`, or `--force` for a guest that holds no data yet.
 
 ## Runtimes
 
@@ -102,7 +101,7 @@ pveam download local <template>
 pct create <ID> local:vztmpl/<template> --hostname <name> --ostype <os> --unprivileged <var_unprivileged> --features nesting=1 \
   --cores <C> --memory <M> --swap <swap> --rootfs local-lvm:<G> \
   --net0 name=eth0,bridge=vmbr0,ip=<IP>/24,gw=<GW>,type=veth --nameserver <NS> --onboot 1 --start 1
-pct exec <ID> -- bash -c 'until ping -c1 -W1 deb.debian.org >/dev/null 2>&1; do sleep 1; done; echo net-ok'
+pct exec <ID> -- bash -c 'for i in $(seq 60); do getent hosts deb.debian.org >/dev/null && echo net-ok && break; sleep 1; done'
 ```
 
 No `--password`: the console login is not used and `pct exec` does not need one. `keyctl=1` is only for Docker, which this skill does not install. Bind mounts (`--mp0`) are added only when the user asks for one.
@@ -118,7 +117,7 @@ incus list '^<name>$' -c ns4                                                    
 incus exec <name> -- bash -c 'for i in $(seq 60); do getent hosts deb.debian.org >/dev/null && echo net-ok && break; sleep 1; done'
 ```
 
-Create with `init`, not `launch`: a container that is already running needs `incus restart` to pick up the address, and a restart sent while systemd is still booting waits forever for a clean shutdown. The minimal Incus images ship without `ping`, so the network wait uses `getent` and gives up after 60 s.
+Create with `init`, not `launch`: a container that is already running needs `incus restart` to pick up the address, and a restart sent while systemd is still booting waits forever for a clean shutdown. The network wait in both runtimes uses `getent` (always present, unlike `ping`) and gives up after 60 s; no `net-ok` means stop and check the guest's network.
 
 Base preparation in either guest, which is what the community-scripts housekeeping functions amount to:
 
