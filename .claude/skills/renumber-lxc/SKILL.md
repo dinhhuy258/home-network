@@ -17,9 +17,9 @@ Invoke the `ssh-shell` skill first and let the user select a pane SSH'd into the
 
 - Kept: disk data, IP, MAC, `onboot`, `startup: order=`, tags, description, features. Nothing inside the guest refers to its own ID.
 - Lost: the RRD graph history in the web UI (keyed by ID).
-- Old vzdump archives keep the old ID in their name and will never be pruned by the new ID's retention. Step 4 handles them.
+- Old vzdump archives keep the old ID in their name and will never be pruned by the new ID's retention. Step 5 handles them.
 
-## 0. Preconditions
+## 1. Preconditions
 
 `OLD` and `NEW` are the skill arguments.
 
@@ -33,7 +33,7 @@ lvs --noheadings -o lv_name pve | grep -E "vm-$NEW-"       # must be empty: no o
 
 **Stop immediately and report** if `pct` is missing (wrong host), the container is not listed on this node, the new ID appears in `.vmlist` (say which node the entry names) or an LV with the new ID exists. Do not retry on another pane and do not pick another ID on your own.
 
-## 1. Inspect (read-only)
+## 2. Inspect (read-only)
 
 ```bash
 pct status $OLD; cat /etc/pve/lxc/$OLD.conf
@@ -51,9 +51,9 @@ Stop and ask the user if:
 
 References found in jobs.cfg (`vmid` lists), HA, replication, pools (`user.cfg`), cron, `/root` scripts or a `<id>.fw` firewall file must be moved to the new ID in the same pass (pool/HA: remove + re-add via `pvesh`/`ha-manager`; firewall: `cat $OLD.fw > $NEW.fw && rm $OLD.fw`).
 
-## 2. Renumber
+## 3. Renumber
 
-One `lvrename` per disk: the rootfs and every `mpN` on `local-lvm`. The chain below renames `disk-0` only; add one `lvrename` line per LV that step 1 listed before sending it. Then the config: **pmxcfs rejects `sed -i`**, so write the edited copy to the new file name and delete the old one.
+One `lvrename` per disk: the rootfs and every `mpN` on `local-lvm`. The chain below renames `disk-0` only; add one `lvrename` line per LV that step 2 listed before sending it. Then the config: **pmxcfs rejects `sed -i`**, so write the edited copy to the new file name and delete the old one.
 
 ```bash
 pct stop $OLD \
@@ -65,7 +65,7 @@ pct stop $OLD \
 
 Send the chain as one command with `--timeout 120`; do not split it. The `&&` chain stops at the first failure. If it does, check which step ran (`lvs`, `ls /etc/pve/lxc/`) before doing anything else.
 
-## 3. Verify
+## 4. Verify
 
 - `pct list` shows `$NEW` running and no `$OLD`.
 - The service inside is active and its port listens (`pct exec $NEW -- ss -ltnp`).
@@ -73,7 +73,7 @@ Send the chain as one command with `--timeout 120`; do not split it. The `&&` ch
 
 Some services fail for a minute or two after a hard stop. Wait before debugging. Example: Pocket ID returns 502 with `already one instance of Pocket ID running` until its Postgres lease expires.
 
-## 4. Clean up
+## 5. Clean up
 
-- Re-run the step 1 `grep -rnwE "$OLD"`. Anything still matching is edited now.
+- Re-run the step 2 `grep -rnwE "$OLD"`. Anything still matching is edited now.
 - Old vzdump archives (`pvesm list synology | grep "lxc-$OLD-"`) stay until a backup under `$NEW` exists. Tell the user to delete them by hand after the next successful backup job, or do it now if they confirm they do not need a restore point from before the renumber.
