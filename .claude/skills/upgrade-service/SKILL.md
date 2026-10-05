@@ -26,6 +26,7 @@ Read the reference for the requested service first and follow it together with t
 
 - Every comment or description written to a server must be in English.
 - Never print secrets from a `.env`, `config.json` or similar in the conversation.
+- Never print a line that holds a secret, not even masked: a hand-written mask breaks when the secret contains its delimiter (an `@` inside a database password). Extract only the non-secret part (`${url##*@}` for the host and database, `${url#*://}` then `${x%%:*}` for the user) or test presence with `grep -c '^KEY=' <file>`.
 - Stop the service once: install every new piece (binary, web assets, plugins) before the single `systemctl start`, unless the reference's script handles the restart itself.
 
 ## Runtimes

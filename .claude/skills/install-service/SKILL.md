@@ -24,6 +24,7 @@ One new guest per service, built by mirroring the user's reference step by step.
 
 - Every comment or description written to a server must be in English.
 - Never print a secret in the conversation: never `cat` a config that holds one, never put one on a command line, and never ask the user to paste one into the chat. Secrets enter the guest only through the path in step 8.
+- Never print a line that holds a secret, not even masked: a hand-written mask breaks when the secret contains its delimiter (an `@` inside a database password). Extract only the non-secret part (`${url##*@}` for the host and database, `${url#*://}` then `${x%%:*}` for the user) or test presence with `grep -c '^KEY=' <file>`.
 - No database inside the guest. PostgreSQL, MySQL, MariaDB, MongoDB, Redis and similar are provided by the user (step 6). Install only the client library, driver or build feature of the engine the user chose, never the others'.
 - Create the guest with the resources the user picked in step 4. A build boost is temporary and is reverted in step 10 even after a failed run.
 - Ask once, up front (steps 4 to 6), then run through the install without further questions unless something stops it.
