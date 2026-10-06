@@ -14,6 +14,7 @@ Read the reference for the requested service first and follow it together with t
 | Service | Reference | Host / guest | Scripts |
 |---|---|---|---|
 | Immich | `references/immich.md` | Proxmox LXC `immich`, plus the Oracle ML VM | `scripts/immich-compile.sh`, `scripts/immich-upgrade.sh` |
+| Frigate | `references/frigate.md` | Proxmox LXC `frigate` on pve2, Docker Compose | none, all commands inline |
 | Vaultwarden | `references/vaultwarden.md` | Proxmox LXC `vaultwarden` | none, all commands inline |
 
 ## Pick the reference
