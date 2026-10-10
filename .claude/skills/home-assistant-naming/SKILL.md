@@ -36,7 +36,7 @@ f<floor>_<location>_<type>[_left|_right]
 ```
 
 - Lowercase, underscores, English, no brand or model, no `_1`/`_2`.
-- `location` = the area_id (`living_room`, `front_yard`, `master_wc`).
+- `location` = the spot where the plate or sensor is mounted (`entrance`, `stairs`, `master_bed`, `master_wc`, `living_room`). It often equals an area_id but does not have to: `f1_entrance_switch_left` sits in area Living room, `f2_master_wc_switch_left` in area Master.
 - `type` = `switch`, `sensor`, `contact`. A multi-function sensor is just `sensor`.
 - Two plates at one spot: `_left` / `_right` as seen by the person pressing.
 - Examples: `f1_entrance_switch_left`, `f1_kitchen_switch`, `f2_master_wc_sensor`.
@@ -67,16 +67,20 @@ The plate name never appears in a load's ID: the area comes from the load, the d
 
 ## Gangs without a load, auxiliary entities
 
-- Decoupled gangs, second plates, `_action`, `_battery`, `_illuminance`: keep the Z2M-suggested ID (`switch.f2_master_bed_switch_l1`, `sensor.f1_wc_sensor_battery`), no own area, hidden, not exposed.
-- Automations react to their `action` and control the load by entity_id.
+- Decoupled gangs, second plates, `_battery`, `_illuminance`: keep the Z2M-suggested ID (`switch.f2_master_bed_switch_left`, `sensor.f1_wc_sensor_battery`), no own area, hidden, not exposed.
+- Relay suffixes follow the Aqara endpoints: 3-gang `_left`, `_center`, `_right` for l1, l2, l3; 2-gang `_left`, `_right`; 1-gang no suffix (`switch.f2_lightwell_switch`). A plate already ending in `_left` gives `switch.f2_master_switch_left_left`, which is fine because the relay is hidden.
+- Z2M 2.x creates no `sensor.*_action` entity. Presses reach HA only as MQTT device triggers or on the topic `zigbee2mqtt/<friendly_name>/action`, with payloads such as `single_left`, `single_right`.
+- Set a decoupled gang with its `select.<device>_operation_mode_<endpoint>` = `decoupled`.
+- Aqara decoupled gangs send Aqara multistate events, not OnOff commands, so a Zigbee bind cannot drive another plate. Two-way control is an HA automation, and the secondary gang does nothing while HA or Z2M is down.
+- Automations trigger on the action and control the load by entity_id.
 
 Example: `f2_master_bed_switch`, a 3-gang plate by the bed with no wires; the master lights are wired to `f2_master_switch_left`.
 
-| Entity | Keep ID | Hidden | Exposed | Automation on `single_l<n>` |
+| Entity | Keep ID | Hidden | Exposed | Automation on `zigbee2mqtt/f2_master_bed_switch/action` |
 |---|---|---|---|---|
-| `switch.f2_master_bed_switch_l1` | yes | yes | no | `light.toggle` → `light.f2_master_light` |
-| `switch.f2_master_bed_switch_l2` | yes | yes | no | `light.toggle` → `light.f2_master_bed_light` |
-| `sensor.f2_master_bed_switch_action` | yes | yes | no | trigger source (`zigbee2mqtt/f2_master_bed_switch/action`) |
+| `switch.f2_master_bed_switch_left` | yes | yes | no | `single_left` → `light.toggle` `light.f2_master_light` |
+| `switch.f2_master_bed_switch_center` | yes | yes | no | `single_center` → `light.toggle` `light.f2_master_bed_light` |
+| `switch.f2_master_bed_switch_right` | yes | yes | no | `single_right` → `light.toggle` `light.f2_master_cove_led` |
 
 Voice and dashboards see one `light.f2_master_light`, whichever plate switches it.
 
