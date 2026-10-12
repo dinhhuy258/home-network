@@ -1,0 +1,60 @@
+{
+  "tagOwners": {
+    // tag:server: machines I administer (pve1, NAS, unem...). Destination only, no outbound grants.
+    // tag:incus, tag:caddy, tag:immich: one tag per service that needs its own outbound grants.
+    "tag:server":       ["autogroup:admin"],
+    "tag:incus":        ["autogroup:admin"],
+    "tag:caddy":        ["autogroup:admin"],
+    "tag:immich":       ["autogroup:admin"]
+  },
+
+  "hosts": {
+    "home-vlan":     "192.168.10.0/24",
+    "server-vlan":   "192.168.20.0/24",
+    "incus-net":     "10.250.0.0/24",
+    "caddy":         "192.168.20.5",
+    "mikrotik":      "192.168.10.1",
+    "n8n":           "10.250.0.10",
+    "sochi":         "10.250.0.11",
+    "hermes":        "10.250.0.12",
+    "llm":           "10.250.0.13",
+    "auth":          "10.250.0.17",
+    "databasus":     "100.66.56.112",
+    "immich-ml":     "100.85.241.109"
+  },
+
+  "grants": [
+    // My devices (logged in with my account) may reach both home VLANs and every tag:server node, on any port.
+    { "src": ["autogroup:member"], "dst": ["home-vlan", "server-vlan", "tag:server"], "ip": ["*"] },
+
+    // Oracle host and containers may reach nothing at home except Caddy on tcp:443. Hermes controls HA through the public HA domain.
+    { "src": ["tag:incus", "incus-net"], "dst": ["caddy"], "ip": ["tcp:443"] },
+
+    // Caddy in LXC 101 may reach only the sites it proxies outside the house (databasus and the Oracle containers), each on its own port.
+    { "src": ["tag:caddy"], "dst": ["databasus"], "ip": ["tcp:4005"] },
+    { "src": ["tag:caddy"], "dst": ["n8n"], "ip": ["tcp:5678"] },
+    { "src": ["tag:caddy"], "dst": ["sochi"], "ip": ["tcp:3000"] },
+    { "src": ["tag:caddy"], "dst": ["hermes"], "ip": ["tcp:9119", "tcp:8642"] },
+    { "src": ["tag:caddy"], "dst": ["llm"], "ip": ["tcp:20128"] },
+    { "src": ["tag:caddy"], "dst": ["auth"], "ip": ["tcp:1411"] },
+
+    // Immich in LXC 305 may reach only the Immich ML server on Oracle, on tcp:3003.
+    { "src": ["tag:immich"], "dst": ["immich-ml"], "ip": ["tcp:3003"] },
+
+    // Hermes on Oracle may access the MikroTik.
+    { "src": ["tag:incus", "incus-net"], "dst": ["mikrotik"], "ip": ["tcp:22"] }
+  ],
+
+  // Tailscale SSH: my devices may log in to every tag:server node as root or any non-root user.
+  "ssh": [
+    { "action": "accept", "src": ["autogroup:member"], "dst": ["tag:server"], "users": ["autogroup:nonroot", "root"] }
+  ],
+
+  "tests": [
+    { "src": "duongdinhhuy1993@gmail.com", "accept": ["192.168.20.5:443", "192.168.10.21:8006", "100.79.97.44:22"] },
+    { "src": "tag:caddy",        "accept": ["10.250.0.10:5678", "100.66.56.112:4005"], "deny": ["192.168.20.7:8123", "192.168.10.21:8006", "192.168.20.9:5432"] },
+    { "src": "tag:immich",       "accept": ["100.85.241.109:3003"], "deny": ["192.168.20.9:5432", "192.168.10.21:8006"] },
+    { "src": "tag:incus",        "accept": ["192.168.20.5:443", "192.168.10.1:22"], "deny": ["192.168.20.7:8123", "192.168.10.21:8006", "192.168.10.1:8291"] },
+    { "src": "tag:server",       "deny":   ["192.168.20.7:8123"] }
+  ]
+}
