@@ -14,6 +14,7 @@
     "incus-net":     "10.250.0.0/24",
     "caddy":         "192.168.20.5",
     "mikrotik":      "192.168.10.1",
+    "aruba-vc":      "192.168.10.10",
     "n8n":           "10.250.0.10",
     "sochi":         "10.250.0.11",
     "hermes":        "10.250.0.12",
@@ -42,7 +43,10 @@
     { "src": ["tag:immich"], "dst": ["immich-ml"], "ip": ["tcp:3003"] },
 
     // Hermes on Oracle may access the MikroTik.
-    { "src": ["tag:incus", "incus-net"], "dst": ["mikrotik"], "ip": ["tcp:22"] }
+    { "src": ["tag:incus", "incus-net"], "dst": ["mikrotik"], "ip": ["tcp:22"] },
+
+    // Hermes on Oracle may read the Aruba Virtual Controller CLI (read-only user).
+    { "src": ["tag:incus", "incus-net"], "dst": ["aruba-vc"], "ip": ["tcp:22"] }
   ],
 
   // Tailscale SSH: my devices may log in to every tag:server node as root or any non-root user.
@@ -54,7 +58,7 @@
     { "src": "duongdinhhuy1993@gmail.com", "accept": ["192.168.20.5:443", "192.168.10.21:8006", "100.79.97.44:22"] },
     { "src": "tag:caddy",        "accept": ["10.250.0.10:5678", "100.66.56.112:4005"], "deny": ["192.168.20.7:8123", "192.168.10.21:8006", "192.168.20.9:5432"] },
     { "src": "tag:immich",       "accept": ["100.85.241.109:3003"], "deny": ["192.168.20.9:5432", "192.168.10.21:8006"] },
-    { "src": "tag:incus",        "accept": ["192.168.20.5:443", "192.168.10.1:22"], "deny": ["192.168.20.7:8123", "192.168.10.21:8006", "192.168.10.1:8291"] },
+    { "src": "tag:incus",        "accept": ["192.168.20.5:443", "192.168.10.1:22", "192.168.10.10:22"], "deny": ["192.168.20.7:8123", "192.168.10.21:8006", "192.168.10.1:8291", "192.168.10.10:4343", "192.168.10.11:22"] },
     { "src": "tag:server",       "deny":   ["192.168.20.7:8123"] }
   ]
 }
