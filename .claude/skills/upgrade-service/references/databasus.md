@@ -8,7 +8,7 @@ Built from a release tag inside the container by `/root/build-databasus.sh <TAG>
 |---|---|
 | Guest | Incus container `databasus` on the Oracle host `incus` (Debian 13, arm64), unit `databasus`, port 4005 |
 | Install | `/opt/databasus` (binary, `migrations/`, `ui/build/`, PostgreSQL client bundle under `assets/tools/arm/`); build source left in `/opt/databasus-src` |
-| Config | `/etc/databasus.env` (mode 600): `ENV_MODE`, `DATABASUS_URL`, `DATABASE_DSN`, `APP_VERSION`. Data in `/databasus-data` |
+| Config | `/etc/databasus.env` (mode 600): `ENV_MODE`, `DATABASUS_URL`, `DATABASE_DSN`, `APP_VERSION`, `IS_DISABLE_ANONYMOUS_TELEMETRY`. Data in `/databasus-data` |
 | Database | PostgreSQL, DB `databasus` owned by role `databasus` on the Incus container `postgres` (`10.250.0.16`), same host. `DATABASE_DSN` is key=value form; read the host only with `grep -oE 'host=[^ ]+' /etc/databasus.env`, never a wider pattern |
 | Omitted on purpose | The verification agent, the MySQL, MariaDB and MongoDB client tools and the embedded PostgreSQL server of the upstream image. Only PostgreSQL sources are backed up here |
 
