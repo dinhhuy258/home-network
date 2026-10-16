@@ -20,7 +20,10 @@
     "hermes":        "10.250.0.12",
     "llm":           "10.250.0.13",
     "auth":          "10.250.0.17",
-    "databasus":     "100.66.56.112",
+    "databasus":     "10.250.0.18",
+    "postgresql":    "192.168.20.9",
+    "nas":           "192.168.10.31",
+    "unem":          "100.97.2.82",
     "immich-ml":     "100.85.241.109"
   },
 
@@ -31,7 +34,7 @@
     // Oracle host and containers may reach nothing at home except Caddy on tcp:443. Hermes controls HA through the public HA domain.
     { "src": ["tag:incus", "incus-net"], "dst": ["caddy"], "ip": ["tcp:443"] },
 
-    // Caddy in LXC 101 may reach only the sites it proxies outside the house (databasus and the Oracle containers), each on its own port.
+    // Caddy in LXC 101 may reach only the sites it proxies outside the house (the Oracle containers), each on its own port.
     { "src": ["tag:caddy"], "dst": ["databasus"], "ip": ["tcp:4005"] },
     { "src": ["tag:caddy"], "dst": ["n8n"], "ip": ["tcp:5678"] },
     { "src": ["tag:caddy"], "dst": ["sochi"], "ip": ["tcp:3000"] },
@@ -41,6 +44,11 @@
 
     // Immich in LXC 305 may reach only the Immich ML server on Oracle, on tcp:3003.
     { "src": ["tag:immich"], "dst": ["immich-ml"], "ip": ["tcp:3003"] },
+
+    // Databasus on Oracle may reach only the databases it backs up and the NAS share it stores backups on.
+    // The grant matches only because databasus-egress.service on the incus host keeps the container source IP on the tailnet.
+    { "src": ["databasus"], "dst": ["postgresql", "unem"], "ip": ["tcp:5432"] },
+    { "src": ["databasus"], "dst": ["nas"], "ip": ["tcp:445"] },
 
     // Hermes on Oracle may access the MikroTik.
     { "src": ["tag:incus", "incus-net"], "dst": ["mikrotik"], "ip": ["tcp:22"] },
@@ -56,7 +64,8 @@
 
   "tests": [
     { "src": "duongdinhhuy1993@gmail.com", "accept": ["192.168.20.5:443", "192.168.10.21:8006", "100.79.97.44:22"] },
-    { "src": "tag:caddy",        "accept": ["10.250.0.10:5678", "100.66.56.112:4005"], "deny": ["192.168.20.7:8123", "192.168.10.21:8006", "192.168.20.9:5432"] },
+    { "src": "tag:caddy",        "accept": ["10.250.0.10:5678", "10.250.0.18:4005"], "deny": ["192.168.20.7:8123", "192.168.10.21:8006", "192.168.20.9:5432"] },
+    { "src": "databasus",        "accept": ["192.168.20.9:5432", "100.97.2.82:5432", "192.168.10.31:445"], "deny": ["192.168.10.21:8006", "192.168.20.7:8123", "192.168.10.31:5000"] },
     { "src": "tag:immich",       "accept": ["100.85.241.109:3003"], "deny": ["192.168.20.9:5432", "192.168.10.21:8006"] },
     { "src": "tag:incus",        "accept": ["192.168.20.5:443", "192.168.10.1:22", "192.168.10.10:22"], "deny": ["192.168.20.7:8123", "192.168.10.21:8006", "192.168.10.1:8291", "192.168.10.10:4343", "192.168.10.11:22"] },
     { "src": "tag:server",       "deny":   ["192.168.20.7:8123"] }
