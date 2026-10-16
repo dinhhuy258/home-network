@@ -17,6 +17,7 @@ Read the reference for the requested service first and follow it together with t
 | Frigate | `references/frigate.md` | Proxmox LXC `frigate` on pve2, Docker Compose | none, all commands inline |
 | Vaultwarden | `references/vaultwarden.md` | Proxmox LXC `vaultwarden` | none, all commands inline |
 | Voice (Wyoming Whisper and Piper) | `references/voice.md` | Proxmox LXC `voice` on pve1 | none, all commands inline |
+| Databasus | `references/databasus.md` | Incus container `databasus` on the Oracle host `incus` | `scripts/databasus-build.sh` (copy of `/root/build-databasus.sh` in the container) |
 
 ## Pick the reference
 
