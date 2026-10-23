@@ -1,4 +1,3 @@
 docs/
-smarthome/
 esphome/**/secrets.yaml
 esphome/**/.esphome/
