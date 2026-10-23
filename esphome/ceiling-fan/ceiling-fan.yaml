@@ -1,0 +1,290 @@
+substitutions:
+  name: f1-living-room-fan  # device name: HA entity ids, mDNS host and the fallback hotspot
+  friendly_name: Fan
+  remote_address: "0x707AE"  # 20-bit address of the paired remote, the first 20 bits of every frame
+
+esphome:
+  name: ${name}
+  friendly_name: ${friendly_name}
+  on_boot:
+    priority: -100
+    then:
+      # Show the remembered level and direction; the fan itself is off after a power cut
+      - lambda: |-
+          id(living_fan).speed = id(fan_level);
+          id(living_fan).direction = id(fan_forward) ? fan::FanDirection::FORWARD : fan::FanDirection::REVERSE;
+          id(living_fan).publish_state();
+          id(fan_ready) = true;
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+logger:
+  # Debug: surface the CC1101 TX/RX state transitions
+  level: VERBOSE
+  logs:
+    wifi: INFO
+    api: INFO
+    api.connection: INFO
+    spi: INFO
+    remote_receiver: INFO
+    scheduler: INFO
+    component: INFO
+api:
+  encryption:
+    key: !secret api_encryption_key
+ota:
+  - platform: esphome
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  # Fallback hotspot to set new WiFi credentials from a phone
+  ap:
+    password: !secret ap_password
+
+captive_portal:
+
+spi:
+  clk_pin: GPIO18
+  mosi_pin: GPIO23
+  miso_pin: GPIO19
+
+cc1101:
+  cs_pin: GPIO5
+  frequency: 433.92MHz
+  modulation_type: ASK/OOK
+  output_power: 10
+
+remote_receiver:
+  pin: GPIO27
+  dump: [raw, rc_switch]
+  tolerance: 20%
+  filter: 100us
+  idle: 4ms
+  buffer_size: 4kb
+  on_raw:
+    then:
+      # Decode every frame the physical remote sends: address + command + counter + check.
+      # A valid frame from our remote re-syncs fan_counter, so the next HA press sends counter + 1.
+      - lambda: |-
+          std::string bits;
+          std::vector<int32_t> timings;
+          int32_t tail = 250;
+          for (size_t i = 0; i + 1 < x.size(); i += 2) {
+            int32_t mark = x[i];
+            int32_t space = -x[i + 1];
+            if (mark < 0 || space < 0) {
+              // Misaligned pair: resync on the next element
+              i -= 1;
+              bits.clear();
+              timings.clear();
+              continue;
+            }
+            bool short_mark = mark >= 120 && mark <= 420;
+            bool long_mark = mark >= 580 && mark <= 920;
+            bool short_space = space >= 120 && space <= 420;
+            bool long_space = space >= 580 && space <= 920;
+            if (short_mark && long_space) {
+              bits += '0';
+            } else if (long_mark && short_space) {
+              bits += '1';
+            } else if (short_mark && space > 920 && bits.size() >= 32) {
+              // Stop pulse followed by the idle gap: end of the frame
+              tail = mark;
+              break;
+            } else {
+              bits.clear();
+              timings.clear();
+              continue;
+            }
+            timings.push_back(mark);
+            timings.push_back(-space);
+          }
+          if (bits.size() < 32) return;
+          bits = bits.substr(bits.size() - 32);
+          timings.erase(timings.begin(), timings.end() - 64);
+          timings.push_back(tail);
+          uint32_t frame = 0;
+          for (char c : bits) frame = (frame << 1) | (c == '1' ? 1 : 0);
+          const uint32_t addr = frame >> 12;
+          const uint8_t cmd = (frame >> 7) & 0x1F;
+          const uint8_t ctr = (frame >> 4) & 0x7;
+          const uint8_t chk = frame & 0xF;
+          const uint8_t field = (cmd << 3) | ctr;
+          const uint8_t expect = ((field >> 4) ^ (field & 0xF) ^ 0xE) & 0xF;
+          // Speed buttons send the absolute target level; level 3 is also what the On button sends
+          static const uint8_t LEVEL_CMD[6] = {16, 18, 28, 10, 15, 12};
+          int level = 0;
+          for (int l = 0; l < 6; l++) if (LEVEL_CMD[l] == cmd) level = l + 1;
+          const char *name = level ? "Level" : cmd == 22 ? "Off" : cmd == 26 ? "Turbo"
+                           : cmd == 17 ? "Reverse (air up)" : cmd == 4 ? "Forward (air down)" : "?";
+          int32_t sum_short = 0, n_short = 0, sum_long = 0, n_long = 0;
+          for (size_t i = 0; i + 1 < 64; i++) {
+            int32_t v = timings[i] < 0 ? -timings[i] : timings[i];
+            if (v <= 420) { sum_short += v; n_short++; } else { sum_long += v; n_long++; }
+          }
+          ESP_LOGI("fan", "RX %s addr=%05X cmd=%s(%d) counter=%d check=%X expected=%X %s pulses=%d/%dus",
+                   bits.c_str(), addr, name, cmd, ctr, chk, expect, chk == expect ? "check OK" : "check FAIL",
+                   n_short ? sum_short / n_short : 0, n_long ? sum_long / n_long : 0);
+          if (addr != ${remote_address} || chk != expect) return;
+          id(fan_counter) = ctr;
+          // Mirror what the physical remote did into the fan entity. The globals are updated
+          // first so the fan's on_state sees no difference and sends nothing back over the air.
+          bool changed = true;
+          if (level) {
+            id(fan_is_on) = true;
+            id(fan_level) = level;
+          } else if (cmd == 22) {
+            id(fan_is_on) = false;
+          } else if (cmd == 26) {
+            id(fan_is_on) = true;
+          } else if (cmd == 4 || cmd == 17) {
+            id(fan_forward) = cmd == 4;
+          } else {
+            changed = false;
+          }
+          if (changed) {
+            id(living_fan).state = id(fan_is_on);
+            id(living_fan).speed = id(fan_level);
+            id(living_fan).direction = id(fan_forward) ? fan::FanDirection::FORWARD : fan::FanDirection::REVERSE;
+            id(living_fan).publish_state();
+          }
+
+remote_transmitter:
+  pin: GPIO26
+  carrier_duty_percent: 100%
+  on_transmit:
+    then:
+      - cc1101.begin_tx
+  on_complete:
+    then:
+      - cc1101.begin_rx
+
+globals:
+  # 3-bit rolling counter the remote sends with every press
+  - id: fan_counter
+    type: int
+    restore_value: true
+    initial_value: '0'
+  - id: fan_frame
+    type: std::string
+  # Last state sent to or heard from the fan. The fan has no feedback channel, so this is
+  # the best estimate: power state is not kept across a reboot because a power cut also
+  # stops the fan, while the level and direction survive.
+  - id: fan_is_on
+    type: bool
+    initial_value: 'false'
+  - id: fan_level
+    type: int
+    restore_value: true
+    initial_value: '3'
+  - id: fan_forward
+    type: bool
+    restore_value: true
+    initial_value: 'true'
+  # Set once on_boot has pushed the restored level and direction into the fan entity
+  - id: fan_ready
+    type: bool
+    initial_value: 'false'
+
+script:
+  # Frame = 20-bit address + 5-bit command + 3-bit counter + 4-bit check
+  - id: build_fan_frame
+    parameters:
+      cmd: int
+    then:
+      - lambda: |-
+          id(fan_counter) = (id(fan_counter) + 1) & 0x7;
+          const uint32_t field = (cmd << 3) | id(fan_counter);
+          const uint32_t check = (field >> 4) ^ (field & 0xF) ^ 0xE;
+          const uint32_t frame = ((uint32_t) ${remote_address} << 12) | (field << 4) | check;
+          id(fan_frame).clear();
+          for (int i = 31; i >= 0; i--) id(fan_frame) += ((frame >> i) & 1) ? '1' : '0';
+          ESP_LOGI("fan", "cmd=%d counter=%d frame=%s", cmd, id(fan_counter), id(fan_frame).c_str());
+  # Queued so that a speed change and a direction change sent together go out one after the other
+  - id: send_fan_cmd
+    mode: queued
+    parameters:
+      cmd: int
+    then:
+      - script.execute:
+          id: build_fan_frame
+          cmd: !lambda return cmd;
+      # The sync pulse before each frame equals the remote's 250us tail pulse + ~8.7ms gap,
+      # so wait_time must stay 0 to keep the same spacing between repeats
+      - remote_transmitter.transmit_rc_switch_raw:
+          code: !lambda return id(fan_frame);
+          protocol:
+            pulse_length: 250
+            sync: [1, 35]
+            zero: [1, 3]
+            one: [3, 1]
+          repeat:
+            times: 5
+            wait_time: 0us
+      # Transmission runs in the background (5 repeats take about 210 ms); keep the script
+      # busy until it is over so the next queued command does not overlap on air
+      - delay: 300ms
+
+number:
+  # Current counter value; the next press sends this + 1. Auto-synced from the physical remote.
+  - platform: template
+    name: "Counter"
+    icon: mdi:counter
+    entity_category: diagnostic
+    min_value: 0
+    max_value: 7
+    step: 1
+    mode: box
+    update_interval: 2s
+    lambda: return id(fan_counter);
+    set_action:
+      - lambda: id(fan_counter) = ((int) x) & 0x7;
+
+fan:
+  # The fan reports nothing back, so the state shown is the last command sent from HA or
+  # heard from the physical remote. Forward = air blown down.
+  - platform: template
+    id: living_fan
+    name: ""  # takes the device name, so HA gets fan.f1_living_room_fan
+    icon: mdi:ceiling-fan
+    speed_count: 6
+    has_direction: true
+    restore_mode: ALWAYS_OFF  # a power cut stops the fan, so start as off like it does
+    on_state:
+      - lambda: |-
+          if (!id(fan_ready)) return;
+          static const uint8_t LEVEL_CMD[6] = {16, 18, 28, 10, 15, 12};
+          const bool want_on = x->state;
+          const int want_level = x->speed < 1 ? 1 : x->speed > 6 ? 6 : x->speed;
+          const bool want_forward = x->direction == fan::FanDirection::FORWARD;
+          if (want_forward != id(fan_forward)) {
+            id(fan_forward) = want_forward;
+            id(send_fan_cmd).execute(want_forward ? 4 : 17);
+          }
+          if (want_on != id(fan_is_on) || (want_on && want_level != id(fan_level))) {
+            id(fan_is_on) = want_on;
+            if (want_on) {
+              // A level code also starts the fan from off (level 3 is the On button's code)
+              id(fan_level) = want_level;
+              id(send_fan_cmd).execute(LEVEL_CMD[want_level - 1]);
+            } else {
+              id(send_fan_cmd).execute(22);
+            }
+          }
+
+button:
+  - platform: template
+    name: "Turbo"
+    icon: mdi:fan-speed-3
+    on_press:
+      - script.execute:
+          id: send_fan_cmd
+          cmd: 26  # 11010
+      # Turbo starts the fan too; its level is unknown, so only the power state is mirrored
+      - lambda: |-
+          id(fan_is_on) = true;
+          id(living_fan).state = true;
+          id(living_fan).publish_state();
