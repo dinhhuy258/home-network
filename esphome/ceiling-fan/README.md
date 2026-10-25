@@ -51,7 +51,7 @@ A phone joined to that hotspot gets a page to pick a new WiFi.
 
 ## 3. Firmware behaviour
 
-The firmware creates three entities: a fan with 6 speed levels and a direction, a Turbo button and a Counter number (diagnostic, editable by hand).
+The firmware creates four entities: a fan with 6 speed levels and a direction, a Turbo button, a Natural wind button and a Counter number (diagnostic, editable by hand).
 Level 1 to 6 shows up as 17, 33, 50, 67, 83 and 100 %.
 Forward blows air down and turns counter-clockwise seen from below, reverse pulls air up and turns clockwise.
 
@@ -59,6 +59,7 @@ Forward blows air down and turns counter-clockwise seen from below, reverse pull
 - The counter, the last level and the direction are stored in flash, so they survive a reboot and an OTA update.
 - The power state is not stored. After an ESP32 reboot or OTA update the entity shows off, even when the fan is running.
 - When HA changes the entity, the `on_state` lambda compares the new state with the stored one and only sends what changed: the level code when the fan turns on or changes level, the Off code when it turns off, and the direction code when the direction changes.
+- Turbo and Natural wind each send one code of their own. Neither is one of the six levels, so pressing them marks the fan as on and leaves the level shown in HA unchanged.
 - Frames go out through the queued script `send_fan_cmd`, which raises the counter, builds the 32-bit frame and sends it 5 times, then waits 300 ms so two commands never overlap on air.
 - Every frame heard from the remote is decoded by the `on_raw` lambda. When the address and the check are right, the counter is copied from the remote, and the command is mirrored into the entity without sending anything back.
 
@@ -82,6 +83,7 @@ Example: level 3 with counter 6 = `01110000011110101110` + `11100` + `110` + `01
 | 风扇开 | On, sends the level 3 code | `11100` (28) |
 | 风扇关 | Off | `10110` (22) |
 | 强劲风 | Turbo, a separate code, not level 6 | `11010` (26) |
+| 自然风 | Natural wind, one code for every press | `11110` (30) |
 | 一键反转 | Air down, HA forward | `00100` (4) |
 | 一键反转 | Air up, HA reverse | `10001` (17) |
 

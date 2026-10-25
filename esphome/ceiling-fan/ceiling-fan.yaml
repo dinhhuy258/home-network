@@ -119,6 +119,7 @@ remote_receiver:
           int level = 0;
           for (int l = 0; l < 6; l++) if (LEVEL_CMD[l] == cmd) level = l + 1;
           const char *name = level ? "Level" : cmd == 22 ? "Off" : cmd == 26 ? "Turbo"
+                           : cmd == 30 ? "Natural wind"
                            : cmd == 17 ? "Reverse (air up)" : cmd == 4 ? "Forward (air down)" : "?";
           int32_t sum_short = 0, n_short = 0, sum_long = 0, n_long = 0;
           for (size_t i = 0; i + 1 < 64; i++) {
@@ -138,7 +139,9 @@ remote_receiver:
             id(fan_level) = level;
           } else if (cmd == 22) {
             id(fan_is_on) = false;
-          } else if (cmd == 26) {
+          } else if (cmd == 26 || cmd == 30) {
+            // Turbo and natural wind are treated as a start. Neither is one of the six
+            // levels, so only the power state is mirrored and the level is left alone.
             id(fan_is_on) = true;
           } else if (cmd == 4 || cmd == 17) {
             id(fan_forward) = cmd == 4;
@@ -284,6 +287,19 @@ button:
           id: send_fan_cmd
           cmd: 26  # 11010
       # Turbo starts the fan too; its level is unknown, so only the power state is mirrored
+      - lambda: |-
+          id(fan_is_on) = true;
+          id(living_fan).state = true;
+          id(living_fan).publish_state();
+
+  - platform: template
+    name: "Natural wind"
+    icon: mdi:weather-windy
+    on_press:
+      - script.execute:
+          id: send_fan_cmd
+          cmd: 30  # 11110
+      # Natural wind is not one of the six levels, so only the power state is mirrored
       - lambda: |-
           id(fan_is_on) = true;
           id(living_fan).state = true;
