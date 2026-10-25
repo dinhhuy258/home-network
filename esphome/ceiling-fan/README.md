@@ -51,7 +51,7 @@ A phone joined to that hotspot gets a page to pick a new WiFi.
 
 ## 3. Firmware behaviour
 
-The firmware creates four entities: a fan with 6 speed levels and a direction, a Turbo button, a Natural wind button and a Counter number (diagnostic, editable by hand).
+The firmware creates five entities: a fan with 6 speed levels and a direction, a Turbo button, a Natural wind button, a Mode sensor and a Counter number (diagnostic, editable by hand).
 Level 1 to 6 shows up as 17, 33, 50, 67, 83 and 100 %.
 Forward blows air down and turns counter-clockwise seen from below, reverse pulls air up and turns clockwise.
 
@@ -60,6 +60,7 @@ Forward blows air down and turns counter-clockwise seen from below, reverse pull
 - The power state is not stored. After an ESP32 reboot or OTA update the entity shows off, even when the fan is running.
 - When HA changes the entity, the `on_state` lambda compares the new state with the stored one and only sends what changed: the level code when the fan turns on or changes level, the Off code when it turns off, and the direction code when the direction changes.
 - Turbo and Natural wind each send one code of their own. Neither is one of the six levels, so pressing them marks the fan as on and leaves the level shown in HA unchanged.
+- The Mode sensor shows Normal, Natural wind or Turbo: the last mode code sent to the fan or heard from the remote. A level code or the Off code sets it back to Normal, a direction code leaves it unchanged. It is not stored, so it shows Normal after a reboot.
 - Frames go out through the queued script `send_fan_cmd`, which raises the counter, builds the 32-bit frame and sends it 5 times, then waits 300 ms so two commands never overlap on air.
 - Every frame heard from the remote is decoded by the `on_raw` lambda. When the address and the check are right, the counter is copied from the remote, and the command is mirrored into the entity without sending anything back.
 

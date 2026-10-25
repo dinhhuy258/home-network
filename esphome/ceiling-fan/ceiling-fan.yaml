@@ -14,6 +14,7 @@ esphome:
           id(living_fan).speed = id(fan_level);
           id(living_fan).direction = id(fan_forward) ? fan::FanDirection::FORWARD : fan::FanDirection::REVERSE;
           id(living_fan).publish_state();
+          id(fan_mode).publish_state("Normal");
           id(fan_ready) = true;
 
 esp32:
@@ -137,12 +138,15 @@ remote_receiver:
           if (level) {
             id(fan_is_on) = true;
             id(fan_level) = level;
+            id(fan_mode).publish_state("Normal");
           } else if (cmd == 22) {
             id(fan_is_on) = false;
+            id(fan_mode).publish_state("Normal");
           } else if (cmd == 26 || cmd == 30) {
             // Turbo and natural wind are treated as a start. Neither is one of the six
             // levels, so only the power state is mirrored and the level is left alone.
             id(fan_is_on) = true;
+            id(fan_mode).publish_state(cmd == 26 ? "Turbo" : "Natural wind");
           } else if (cmd == 4 || cmd == 17) {
             id(fan_forward) = cmd == 4;
           } else {
@@ -246,6 +250,14 @@ number:
     set_action:
       - lambda: id(fan_counter) = ((int) x) & 0x7;
 
+text_sensor:
+  # Last mode code sent or heard: Normal, Natural wind or Turbo. A level code or the Off
+  # code sets it back to Normal, a direction code leaves it alone. Not stored across a reboot.
+  - platform: template
+    id: fan_mode
+    name: "Mode"
+    icon: mdi:fan-auto
+
 fan:
   # The fan reports nothing back, so the state shown is the last command sent from HA or
   # heard from the physical remote. Forward = air blown down.
@@ -276,6 +288,8 @@ fan:
             } else {
               id(send_fan_cmd).execute(22);
             }
+            // A level code or the Off code ends turbo or natural wind
+            id(fan_mode).publish_state("Normal");
           }
 
 button:
@@ -291,6 +305,7 @@ button:
           id(fan_is_on) = true;
           id(living_fan).state = true;
           id(living_fan).publish_state();
+          id(fan_mode).publish_state("Turbo");
 
   - platform: template
     name: "Natural wind"
@@ -304,3 +319,4 @@ button:
           id(fan_is_on) = true;
           id(living_fan).state = true;
           id(living_fan).publish_state();
+          id(fan_mode).publish_state("Natural wind");
