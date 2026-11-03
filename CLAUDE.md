@@ -47,6 +47,10 @@ A higher number means less trust.
 
 - Oracle "incus" host (arm64, Incus), only 443 open, containers on `10.250.0.0/24`.
 - Run commands in a container with `incus exec <name> -- ...`; use `systemd-run` for long jobs.
+- Incus masquerades container traffic, so on the tailnet every container appears as the `incus` node (`tag:incus`) unless it keeps its own source IP.
+- A container that needs its own tailnet grant keeps its IP through a `<name>-egress.service` unit and `/etc/nftables-<name>-egress.nft` (identity SNAT on `tailscale0`); the grant in `tailscale/policy.hujson` then uses its host alias. Today: `databasus` and `hermes`.
+- Only `hermes` may SSH to the MikroTik and the Aruba VC; no other container or `tag:incus` may.
+- Every container has `security.ipv4_filtering=true` on `eth0`, so it cannot spoof another container's IP. Set it on every new container.
 
 ## Home Assistant
 
